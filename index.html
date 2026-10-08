@@ -106,6 +106,9 @@
     }
 
     .header-container img {
+      width: 469px;
+      height: 200px;
+      max-width: 100%;
       max-height: 200px;
       object-fit: contain;
       margin-left: 60px;
@@ -118,7 +121,7 @@
       transform: translate(-50%, -50%);
       text-align: center;
       background: var(--light-dark);
-      padding: 0.5rem 4rem;
+      padding: 0.5rem 2rem;
       border-radius: 20px;
       box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
       z-index: 200;
@@ -130,11 +133,47 @@
 
     .timer-card .display-time {
       font-family: 'Roboto Mono', monospace;
-      font-size: 6rem;
+      font-size: 3.5rem;
       font-weight: bold;
       color: var(--yellow);
-      letter-spacing: 5px;
+      letter-spacing: 2px;
       text-shadow: 0 0 10px var(--yellow);
+      white-space: nowrap;
+    }
+
+    .lead-confirmation {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 16px;
+      border: 1px solid var(--yellow);
+      border-radius: 8px;
+      color: white;
+      font-family: 'Roboto Mono', monospace;
+    }
+
+    .lead-confirmation.show {
+      display: block;
+    }
+
+    .lead-confirmation p {
+      margin: 0 0 8px;
+    }
+
+    .lead-confirmation .btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.25rem;
+    }
+
+    @media (max-width: 700px) {
+      .timer-card {
+        max-width: calc(100vw - 24px);
+        padding: 0.5rem 1rem;
+      }
+
+      .timer-card .display-time {
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+      }
     }
 
     .timer-card .btn-lg {
@@ -498,7 +537,7 @@
 <body>
 
   <div class="header-container">
-    <img src="header1.png" alt="Shotokan Karate Championship 2025" class="img-fluid">
+    <img src="mka logo.jpeg" alt="MKA logo" class="img-fluid">
   </div>
 
   <div class="d-flex flex-grow-1">
@@ -516,7 +555,7 @@
           <div id="redH" class="penalty-block hansoku">H</div>
         </div>
         <div class="d-flex justify-content-center gap-2">
-          <button onclick="removePenalty('red')" class="btn btn-danger btn-sm">Remove</button>
+          <button onclick="removePenalty('red')" class="btn btn-danger btn-sm">Remove Penalty</button>
           <button onclick="addPenalty('red')" class="btn btn-outline-light btn-sm">Add Penalty</button>
         </div>
       </div>
@@ -527,7 +566,7 @@
       </div>
       <div class="button-group-bottom">
         <button onclick="removeScore('red')" class="btn btn-danger btn-sm">Remove Score</button>
-        <button onclick="awardSensu('red')" class="btn btn-info btn-sm">Award Sensu</button>
+        <button id="redSensuButton" onclick="awardSensu('red')" class="btn btn-info btn-sm">Award Senshu</button>
       </div>
     </div>
 
@@ -545,7 +584,7 @@
           <div id="blueH" class="penalty-block hansoku">H</div>
         </div>
         <div class="d-flex justify-content-center gap-2">
-          <button onclick="removePenalty('blue')" class="btn btn-danger btn-sm">Remove</button>
+          <button onclick="removePenalty('blue')" class="btn btn-danger btn-sm">Remove Penalty</button>
           <button onclick="addPenalty('blue')" class="btn btn-outline-light btn-sm">Add Penalty</button>
         </div>
       </div>
@@ -556,13 +595,19 @@
       </div>
       <div class="button-group-bottom">
         <button onclick="removeScore('blue')" class="btn btn-danger btn-sm">Remove Score</button>
-        <button onclick="awardSensu('blue')" class="btn btn-info btn-sm">Award Sensu</button>
+        <button id="blueSensuButton" onclick="awardSensu('blue')" class="btn btn-info btn-sm">Award Senshu</button>
       </div>
     </div>
   </div>
 
   <div class="timer-card">
     <div class="display-time" id="time">00:00</div>
+    <div class="lead-confirmation" id="leadConfirmation" aria-live="assertive">
+      <p id="leadConfirmationText"></p>
+      <p>Confirm in <span id="leadConfirmationCountdown">10</span>s</p>
+      <button onclick="confirmLeadVictory(true)" class="btn btn-success">Confirm Win</button>
+      <button onclick="confirmLeadVictory(false)" class="btn btn-danger">Not Yet</button>
+    </div>
     <div class="mt-3">
       <button onclick="startTimer()" class="btn btn-success btn-lg">Start</button>
       <button onclick="stopTimer()" class="btn btn-danger btn-lg">Stop</button>
@@ -621,6 +666,10 @@
   <script>
     let redScore = 0, blueScore = 0;
     let timer, timeLeft = 0;
+    let lastTimerTick = 0;
+    let leadConfirmationInterval = null;
+    let pendingLeadWinner = null;
+    let leadWasTimerRunning = false;
     const penaltyLevels = ["None", "C1", "C2", "C3", "HC", "H"];
     let penalties = { red: { cat1: 0 }, blue: { cat1: 0 } };
     let sensu = null;
@@ -661,7 +710,6 @@
         }
         if (redScore === 0 && sensu === 'red') {
           sensu = null;
-          document.getElementById("redSensu").style.display = "none";
         }
       } else {
         if (blueScoreHistory.length > 0) {
@@ -670,9 +718,9 @@
         }
         if (blueScore === 0 && sensu === 'blue') {
           sensu = null;
-          document.getElementById("blueSensu").style.display = "none";
         }
       }
+      updateSensuDisplay();
       updateScores();
       checkVictoryMargin();
     }
@@ -708,16 +756,31 @@
     }
 
 
-    function awardSensu(player) {
-      if (sensu === null) {
-        sensu = player;
-        document.querySelectorAll('.side').forEach(side => side.classList.add('sensu-active'));
+    function updateSensuDisplay() {
+      document.querySelectorAll('.side').forEach(side => {
+        side.classList.toggle('sensu-active', sensu !== null);
+      });
+      document.getElementById("redSensu").style.display = sensu === "red" ? "inline-block" : "none";
+      document.getElementById("blueSensu").style.display = sensu === "blue" ? "inline-block" : "none";
 
-        document.getElementById("redSensu").style.display = "none";
-        document.getElementById("blueSensu").style.display = "none";
-        document.getElementById(player + "Sensu").style.display = "inline-block";
+      ["red", "blue"].forEach(player => {
+        const button = document.getElementById(player + "SensuButton");
+        const isAwarded = sensu === player;
+        button.textContent = isAwarded ? "Remove Senshu" : "Award Senshu";
+        button.classList.toggle("btn-danger", isAwarded);
+        button.classList.toggle("btn-info", !isAwarded);
+      });
+    }
+
+    function awardSensu(player) {
+      if (sensu === player) {
+        sensu = null;
+        updateSensuDisplay();
+      } else if (sensu === null) {
+        sensu = player;
+        updateSensuDisplay();
       } else {
-        alert("Sensu has already been awarded!");
+        alert("Senshu has already been awarded!");
       }
     }
 
@@ -778,13 +841,53 @@
       }, 12000);
     }
 
+    function showLeadConfirmation(player, lead) {
+      leadWasTimerRunning = Boolean(timer);
+      stopTimer();
+      pendingLeadWinner = player;
+      document.getElementById("leadConfirmationText").textContent =
+        `${player === "red" ? "AKA" : "AAO"} leads by ${lead} points. Confirm the win?`;
+      document.getElementById("leadConfirmationCountdown").textContent = "10";
+      document.getElementById("leadConfirmation").classList.add("show");
+
+      let secondsRemaining = 10;
+      clearInterval(leadConfirmationInterval);
+      leadConfirmationInterval = setInterval(() => {
+        secondsRemaining--;
+        document.getElementById("leadConfirmationCountdown").textContent = secondsRemaining;
+        if (secondsRemaining <= 0) confirmLeadVictory(false);
+      }, 1000);
+    }
+
+    function confirmLeadVictory(confirmed) {
+      if (!pendingLeadWinner) return;
+
+      pendingLeadWinner = null;
+      clearInterval(leadConfirmationInterval);
+      leadConfirmationInterval = null;
+      document.getElementById("leadConfirmation").classList.remove("show");
+
+      if (confirmed) {
+        stopTimer();
+        return;
+      }
+
+      if (leadWasTimerRunning) startTimer();
+    }
+
 
 
 
 
     function startTimer() {
       if (timer) return;
+      lastTimerTick = performance.now();
       timer = setInterval(() => {
+        const now = performance.now();
+        timeLeft = Math.max(0, timeLeft - (now - lastTimerTick));
+        lastTimerTick = now;
+        renderTimer();
+
         if (timeLeft <= 0) {
           stopTimer();
           if (redScore > blueScore) {
@@ -796,14 +899,17 @@
             else if (sensu === 'blue') declareWinner("Blue (Sensu)");
             else declareWinner("Draw");
           }
-        } else {
-          timeLeft--;
-          let minutes = Math.floor(timeLeft / 60);
-          let seconds = timeLeft % 60;
-          document.getElementById("time").innerText =
-            `${minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
         }
-      }, 1000);
+      }, 10);
+    }
+
+    function renderTimer() {
+      const totalMilliseconds = Math.ceil(timeLeft);
+      const minutes = Math.floor(totalMilliseconds / 60000);
+      const seconds = Math.floor((totalMilliseconds % 60000) / 1000);
+      const centiseconds = Math.floor((totalMilliseconds % 1000) / 10);
+      document.getElementById("time").textContent =
+        `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
     }
 
     function stopTimer() {
@@ -817,10 +923,13 @@
       const minutes = parseInt(document.getElementById("minuteInput").value) || 0;
       const seconds = parseInt(document.getElementById("secondInput").value) || 0;
 
-      timeLeft = (minutes * 60) + seconds;
-
-      document.getElementById("time").innerText =
-        `${minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
+      timeLeft = ((minutes * 60) + seconds) * 1000;
+      renderTimer();
+      pendingLeadWinner = null;
+      leadWasTimerRunning = false;
+      clearInterval(leadConfirmationInterval);
+      leadConfirmationInterval = null;
+      document.getElementById("leadConfirmation").classList.remove("show");
 
       redScore = 0; blueScore = 0; updateScores();
       penalties = { red: { cat1: 0 }, blue: { cat1: 0 } };
@@ -841,16 +950,15 @@
       document.getElementById("blueH").style.display = "none";
 
       sensu = null;
-      document.querySelectorAll('.side').forEach(side => side.classList.remove('sensu-active'));
-      document.getElementById("redSensu").style.display = "none";
-      document.getElementById("blueSensu").style.display = "none";
+      updateSensuDisplay();
 
-      document.getElementById("winner").innerText = "";
     }
 
     let leadCheckTimeout = null; // global tracker for timeout
 
 function checkVictoryMargin() {
+  if (pendingLeadWinner) return;
+
   // Clear any previous pending checks
   if (leadCheckTimeout) {
     clearTimeout(leadCheckTimeout);
@@ -862,9 +970,9 @@ function checkVictoryMargin() {
 
     if (leadOption > 0) {
       if (redScore - blueScore >= leadOption) {
-        declareWinner("Red (Lead of " + leadOption + " points)");
+        showLeadConfirmation("red", leadOption);
       } else if (blueScore - redScore >= leadOption) {
-        declareWinner("Blue (Lead of " + leadOption + " points)");
+        showLeadConfirmation("blue", leadOption);
       }
     }
 
