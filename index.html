@@ -168,6 +168,14 @@
       font-size: 1.25rem;
     }
 
+    .lead-confirmation-winner {
+      display: none;
+      max-width: min(240px, 70vw);
+      max-height: 160px;
+      object-fit: contain;
+      margin: 8px auto 0;
+    }
+
     @media (max-width: 700px) {
       .timer-card {
         max-width: calc(100vw - 24px);
@@ -435,7 +443,7 @@
       padding: 6px 10px;
     }
 
-    /* ===== WINNER ANIMATION OVERLAY ===== */
+    /* ===== WINNER OVERLAY ===== */
     .winner-overlay {
       position: fixed;
       top: 0;
@@ -466,11 +474,9 @@
       /* Remove max width limit */
       height: auto;
       /* Keep natural proportions */
-      opacity: 0;
-      transform: scale(0.8);
-      /* Slight zoom effect */
+      opacity: 1;
+      transform: none;
       filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.7));
-      animation: none;
     }
 
 
@@ -482,58 +488,8 @@
       font-size: 2.5rem;
       letter-spacing: 2px;
       text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
-      opacity: 0;
-      transform: translateY(20px);
-      animation: none;
-    }
-
-    /* Animations */
-    @keyframes zoomIn {
-      0% {
-        transform: scale(0.5);
-        opacity: 0;
-      }
-
-      100% {
-        transform: scale(1);
-        opacity: 1;
-      }
-    }
-
-    @keyframes pulse {
-
-      0%,
-      100% {
-        transform: scale(1);
-        filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.6));
-      }
-
-      50% {
-        transform: scale(1.05);
-        filter: drop-shadow(0 0 40px rgba(255, 215, 0, 1));
-      }
-    }
-
-    @keyframes fadeOut {
-      0% {
-        opacity: 1;
-      }
-
-      100% {
-        opacity: 0;
-      }
-    }
-
-    @keyframes slideUp {
-      0% {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-
-      100% {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      opacity: 1;
+      transform: none;
     }
   </style>
 </head>
@@ -608,9 +564,10 @@
     <div class="display-time" id="time"><span id="time-main">00:00</span><span class="milliseconds" id="time-milliseconds">.00</span></div>
     <div class="lead-confirmation" id="leadConfirmation" aria-live="assertive">
       <p id="leadConfirmationText"></p>
-      <p>Confirm in <span id="leadConfirmationCountdown">10</span>s</p>
-      <button onclick="confirmLeadVictory(true)" class="btn btn-success">Confirm Win</button>
-      <button onclick="confirmLeadVictory(false)" class="btn btn-danger">Not Yet</button>
+      <img id="leadConfirmationWinner" class="lead-confirmation-winner" alt="">
+      <p id="leadConfirmationCountdownText">Confirm in <span id="leadConfirmationCountdown">10</span>s</p>
+      <button id="confirmLeadWinButton" onclick="confirmLeadVictory(true)" class="btn btn-success">Confirm Win</button>
+      <button id="rejectLeadWinButton" onclick="confirmLeadVictory(false)" class="btn btn-danger">Not Yet</button>
     </div>
     <div class="mt-3">
       <button onclick="startTimer()" class="btn btn-success btn-lg">Start</button>
@@ -673,6 +630,7 @@
     let lastTimerTick = 0;
     let leadConfirmationInterval = null;
     let pendingLeadWinner = null;
+    let leadWinnerConfirmed = false;
     let leadWasTimerRunning = false;
     const penaltyLevels = ["None", "C1", "C2", "C3", "HC", "H"];
     let penalties = { red: { cat1: 0 }, blue: { cat1: 0 } };
@@ -688,18 +646,17 @@
     });
 
     document.addEventListener("keydown", (event) => {
-      if (event.code !== "Space" || event.repeat || pendingLeadWinner) return;
-
-      const target = event.target;
-      if (target instanceof Element &&
-          target.closest("input, textarea, select, button, a, [contenteditable], [role='button']")) {
-        return;
-      }
-
+      if (event.code !== "Space") return;
       event.preventDefault();
+      if (event.repeat || pendingLeadWinner || leadWinnerConfirmed) return;
+
       if (timer) stopTimer();
       else startTimer();
-    });
+    }, true);
+
+    document.addEventListener("keyup", (event) => {
+      if (event.code === "Space") event.preventDefault();
+    }, true);
 
     function updateScores() {
       document.getElementById("redScore").innerText = redScore;
@@ -834,28 +791,16 @@
         image.src = "";
       }
 
-      // Reset animation and show overlay
+      // Show the winner overlay without animation.
       overlay.style.display = "flex";
-      image.style.animation = "none";
-      reasonText.style.animation = "none";
-      void image.offsetWidth; // force reflow
-
       image.style.opacity = "1";
-      image.style.animation = "zoomIn 1s ease-out forwards, pulse 2s infinite ease-in-out";
+      image.style.transform = "none";
       reasonText.textContent = reason;
       reasonText.style.opacity = "1";
-      reasonText.style.animation = "slideUp 1s ease-out 0.8s forwards";
 
-      // Hide after ~12 seconds
+      // Hide after 12 seconds without a fade animation.
       setTimeout(() => {
-        overlay.style.animation = "fadeOut 1.5s ease forwards";
-        setTimeout(() => {
-          overlay.style.display = "none";
-          image.style.animation = "none";
-          reasonText.style.animation = "none";
-          image.style.opacity = "0";
-          reasonText.style.opacity = "0";
-        }, 1500);
+        overlay.style.display = "none";
       }, 12000);
     }
 
@@ -865,6 +810,10 @@
       pendingLeadWinner = player;
       document.getElementById("leadConfirmationText").textContent =
         `${player === "red" ? "AKA" : "AAO"} leads by ${lead} points. Confirm the win?`;
+      document.getElementById("leadConfirmationWinner").style.display = "none";
+      document.getElementById("leadConfirmationCountdownText").style.display = "";
+      document.getElementById("confirmLeadWinButton").style.display = "";
+      document.getElementById("rejectLeadWinButton").style.display = "";
       document.getElementById("leadConfirmationCountdown").textContent = "10";
       document.getElementById("leadConfirmation").classList.add("show");
 
@@ -880,16 +829,27 @@
     function confirmLeadVictory(confirmed) {
       if (!pendingLeadWinner) return;
 
+      const winner = pendingLeadWinner;
       pendingLeadWinner = null;
       clearInterval(leadConfirmationInterval);
       leadConfirmationInterval = null;
-      document.getElementById("leadConfirmation").classList.remove("show");
 
       if (confirmed) {
+        leadWinnerConfirmed = true;
         stopTimer();
+        document.getElementById("leadConfirmationText").textContent =
+          `${winner === "red" ? "AKA" : "AAO"} wins!`;
+        const winnerImage = document.getElementById("leadConfirmationWinner");
+        winnerImage.src = winner === "red" ? "aka_wins.png" : "aao_wins.png";
+        winnerImage.alt = `${winner === "red" ? "AKA" : "AAO"} wins`;
+        winnerImage.style.display = "block";
+        document.getElementById("leadConfirmationCountdownText").style.display = "none";
+        document.getElementById("confirmLeadWinButton").style.display = "none";
+        document.getElementById("rejectLeadWinButton").style.display = "none";
         return;
       }
 
+      document.getElementById("leadConfirmation").classList.remove("show");
       if (leadWasTimerRunning) startTimer();
     }
 
@@ -898,7 +858,7 @@
 
 
     function startTimer() {
-      if (timer) return;
+      if (timer || leadWinnerConfirmed) return;
       lastTimerTick = performance.now();
       timer = setInterval(() => {
         const now = performance.now();
@@ -946,6 +906,7 @@
       timeLeft = ((minutes * 60) + seconds) * 1000;
       renderTimer();
       pendingLeadWinner = null;
+      leadWinnerConfirmed = false;
       leadWasTimerRunning = false;
       clearInterval(leadConfirmationInterval);
       leadConfirmationInterval = null;
@@ -974,21 +935,12 @@
 
     }
 
-    let leadCheckTimeout = null; // global tracker for timeout
+    function checkVictoryMargin() {
+      if (pendingLeadWinner || leadWinnerConfirmed) return;
 
-function checkVictoryMargin() {
-  if (pendingLeadWinner) return;
+      const leadOption = Number(document.getElementById("leadSelect").value);
+      if (leadOption <= 0) return;
 
-  // Clear any previous pending checks
-  if (leadCheckTimeout) {
-    clearTimeout(leadCheckTimeout);
-  }
-
-  // Wait 1 second before checking lead (to allow simultaneous points)
-  leadCheckTimeout = setTimeout(() => {
-    let leadOption = parseInt(document.getElementById("leadSelect").value);
-
-    if (leadOption > 0) {
       if (redScore - blueScore >= leadOption) {
         showLeadConfirmation("red", leadOption);
       } else if (blueScore - redScore >= leadOption) {
@@ -996,9 +948,7 @@ function checkVictoryMargin() {
       }
     }
 
-    leadCheckTimeout = null; // reset
-  }, 5000); // ⏱ 5 second grace period
-}
+    document.getElementById("leadSelect").addEventListener("change", checkVictoryMargin);
 
     // Change colors dynamically
     document.getElementById("redColorPicker").addEventListener("input", (e) => {
