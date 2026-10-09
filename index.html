@@ -141,6 +141,10 @@
       white-space: nowrap;
     }
 
+    .timer-card .milliseconds {
+      font-size: 50%;
+    }
+
     .lead-confirmation {
       display: none;
       margin-top: 12px;
@@ -537,7 +541,7 @@
 <body>
 
   <div class="header-container">
-    <img src="mka logo.jpeg" alt="MKA logo" class="img-fluid">
+    <img src="mka logo.png" alt="MKA logo" class="img-fluid">
   </div>
 
   <div class="d-flex flex-grow-1">
@@ -601,7 +605,7 @@
   </div>
 
   <div class="timer-card">
-    <div class="display-time" id="time">00:00</div>
+    <div class="display-time" id="time"><span id="time-main">00:00</span><span class="milliseconds" id="time-milliseconds">.00</span></div>
     <div class="lead-confirmation" id="leadConfirmation" aria-live="assertive">
       <p id="leadConfirmationText"></p>
       <p>Confirm in <span id="leadConfirmationCountdown">10</span>s</p>
@@ -908,8 +912,10 @@
       const minutes = Math.floor(totalMilliseconds / 60000);
       const seconds = Math.floor((totalMilliseconds % 60000) / 1000);
       const centiseconds = Math.floor((totalMilliseconds % 1000) / 10);
-      document.getElementById("time").textContent =
-        `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`;
+      document.getElementById("time-main").textContent =
+        `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      document.getElementById("time-milliseconds").textContent =
+        `.${String(centiseconds).padStart(2, "0")}`;
     }
 
     function stopTimer() {
