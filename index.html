@@ -687,6 +687,20 @@
       resetTimer();
     });
 
+    document.addEventListener("keydown", (event) => {
+      if (event.code !== "Space" || event.repeat || pendingLeadWinner) return;
+
+      const target = event.target;
+      if (target instanceof Element &&
+          target.closest("input, textarea, select, button, a, [contenteditable], [role='button']")) {
+        return;
+      }
+
+      event.preventDefault();
+      if (timer) stopTimer();
+      else startTimer();
+    });
+
     function updateScores() {
       document.getElementById("redScore").innerText = redScore;
       document.getElementById("blueScore").innerText = blueScore;
